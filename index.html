@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Saha">
+<meta name="theme-color" content="#F9F9F9">
+<meta name="robots" content="noindex">
+<meta name="format-detection" content="telephone=no">
+<title>Saha Haritası</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="vendor/markercluster/MarkerCluster.css">
+<link rel="stylesheet" href="vendor/markercluster/MarkerCluster.Default.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<div id="uyariBar"></div>
+
+<!-- Paket yokken -->
+<div id="karsilama">
+  <div class="kKart">
+    <img class="kIkon" src="icons/icon-192.png" alt="">
+    <h2>Saha Haritası</h2>
+    <p>Hane adreslerini haritada, her hanenin belgesini tek dokunuşla gösterir.</p>
+    <label class="kBtn" for="paketDosya">Telefon paketini seç</label>
+    <div class="kAdim">
+      <ol>
+        <li>Bilgisayardaki <b>Adres Haritası</b> aracında Excel ve PDF'lerin olduğu klasörü seçip <b>Başlat</b>'a basın.</li>
+        <li><b>Dışa aktar → 📱 Telefon paketi</b> ile <i>saha-paketi-….json</i> dosyasını alın.</li>
+        <li>Dosyayı telefona/tablete gönderin (AirDrop, Drive, e-posta, USB) ve yukarıdan seçin.</li>
+      </ol>
+    </div>
+    <div id="anaEkranIpucu"></div>
+  </div>
+</div>
+
+<input type="file" id="paketDosya" style="display:none">
+
+<div id="yukleniyor"><div class="donen"></div><div id="yukleniyorYazi">Yükleniyor…</div></div>
+
+<!-- Uygulama -->
+<div id="uygulama" style="display:none">
+  <div class="bas">
+    <h1><span>🗺️</span><span id="baslik">Saha Haritası</span></h1>
+    <div class="say">
+      <div><b id="sT">0</b><span>Toplam</span></div>
+      <div><b id="sB" style="color:#FF3B30">0</b><span>Kaldı</span></div>
+      <div><b id="sY" style="color:#34C759">0</b><span>Yapıldı</span></div>
+      <div><b id="sS" style="color:#007AFF">0</b><span>Seçili</span></div>
+    </div>
+  </div>
+  <div class="arac">
+    <input type="search" id="ara" placeholder="Ara: isim, sokak, telefon, hane no…" autocomplete="off">
+  </div>
+  <div id="harita"></div>
+  <div class="yuzenler" id="yuzenler">
+    <button class="yuzen" id="dgKonum" title="Konumum">◎</button>
+    <button class="yuzen" id="dgKatman" title="Harita zemini">▨</button>
+  </div>
+
+  <div class="perdeSheet" id="perdeSheet" onclick="kapatPanel()"></div>
+
+  <div class="panel" id="panelListe">
+    <div class="pb"><span>Adresler</span><span class="dg" onclick="kapatPanel()">Bitti</span></div>
+    <div class="secimBar">
+      <span class="sy" id="secSayi">Seçili: 0</span>
+      <button class="dg" id="secTumu">Listedekileri seç</button>
+      <button class="dg" id="secTemizle">Seçimi bırak</button>
+      <button class="dg vur" id="secKml">KML</button>
+    </div>
+    <div class="pi" id="listeIc"></div>
+  </div>
+
+  <div class="panel" id="panelIst">
+    <div class="pb"><span>Özet</span><span class="dg" onclick="kapatPanel()">Bitti</span></div>
+    <div class="pi" id="istIc"></div>
+  </div>
+
+  <div class="panel" id="panelMahalle">
+    <div class="pb"><span>Filtre</span><span class="dg" onclick="kapatPanel()">Bitti</span></div>
+    <div class="pi">
+      <div class="istBas" style="padding-top:2px">Ziyaret durumu</div>
+      <div class="mfl"><button class="dg" id="dgDurum">Tümü</button>
+        <button class="dg" id="dgSifirla">Yapıldı işaretlerini sıfırla</button></div>
+      <div class="istBas">Mahalleler</div>
+      <div class="mfl" id="mahalleIc"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panelKatman">
+    <div class="pb"><span>Harita zemini</span><span class="dg" onclick="kapatPanel()">Bitti</span></div>
+    <div class="pi"><div class="mfl" id="katmanIc"></div></div>
+  </div>
+
+  <div class="panel" id="panelPaket">
+    <div class="pb"><span>Paket</span><span class="dg" onclick="kapatPanel()">Bitti</span></div>
+    <div class="pi" id="paketIc"></div>
+  </div>
+
+  <nav class="sekmeCubugu">
+    <button class="tab etkin" id="dgHarita"><i>🗺</i><span>Harita</span></button>
+    <button class="tab" id="dgListe"><i>☰</i><span>Liste</span></button>
+    <button class="tab" id="dgMahalle"><i>⛃</i><span>Filtre</span><span class="nokta"></span></button>
+    <button class="tab" id="dgIst"><i>◔</i><span>Özet</span></button>
+    <button class="tab" id="dgPaket"><i>⚙︎</i><span>Paket</span></button>
+  </nav>
+</div>
+
+<!-- Belge görüntüleyici -->
+<div class="pdfPanel" id="pdfPanel">
+  <div class="pdfBas">
+    <button class="dg" id="pdfKapat">Kapat</button>
+    <div class="pdfBaslik"><b id="pdfAd"></b><span id="pdfAlt"></span></div>
+    <button class="dg" id="pdfPaylas">Paylaş</button>
+  </div>
+  <div class="pdfEylem" id="pdfEylem"></div>
+  <div class="pdfIc" id="pdfIc"><div id="pdfSayfalar"></div></div>
+  <div class="pdfZoom">
+    <button id="pdfEksi" aria-label="Uzaklaştır">−</button>
+    <span id="pdfZoomYazi">%100</span>
+    <button id="pdfArti" aria-label="Yakınlaştır">+</button>
+  </div>
+</div>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/markercluster/leaflet.markercluster.js"></script>
+<script src="vendor/pdfjs/pdf.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
