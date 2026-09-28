@@ -251,3 +251,10 @@ a.dg{ text-decoration:none; display:inline-block; }
 }
 
 .pdfBosluk{ flex:none; width:64px; }
+
+/* Anlık konum noktası (iOS tarzı, nabız atan) */
+.konumNokta span{ position:absolute; left:3px; top:3px; width:16px; height:16px; border-radius:50%;
+  background:#007AFF; border:3px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.35); box-sizing:border-box; }
+.konumNokta span:after{ content:""; position:absolute; left:50%; top:50%; width:16px; height:16px;
+  margin:-8px 0 0 -8px; border-radius:50%; background:rgba(0,122,255,.35); animation:nabiz 2s ease-out infinite; }
+@keyframes nabiz{ from{ transform:scale(1); opacity:.9; } to{ transform:scale(3.2); opacity:0; } }

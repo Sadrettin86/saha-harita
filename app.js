@@ -7,7 +7,7 @@
 (function(){
   'use strict';
 
-  var UYGULAMA_SURUM = '1.0.0';
+  var UYGULAMA_SURUM = '1.1.0';
   var DB_AD = 'saha-harita', DB_SURUM = 1;
   var db = null;
 
@@ -916,31 +916,58 @@
         ' · ' + (navigator.onLine === false ? 'çevrimdışı' : 'çevrimiçi');
     }
 
-    /* ---- konum: açıkken mavi nokta hareket eder ---- */
-    function konumAc(){
-      if(!navigator.geolocation){ bildir('Cihaz konum desteklemiyor'); return; }
-      if(izId != null){
-        if(benim) harita.setView(benim, Math.max(harita.getZoom(), 16));
-        return;
+    /* ---- konum: uygulama açılınca başlar, mavi nokta anlık hareket eder ----
+       ◎ düğmesi haritayı konuma getirir ve "takip" açar (yürüdükçe harita da kayar);
+       haritayı elle kaydırınca takip kapanır, nokta görünmeye devam eder. */
+    var takip = false, sonListeKonum = null, izinYok = false;
+    function konumCiz(p){
+      benim = [p.coords.latitude, p.coords.longitude];
+      var dogruluk = Math.min(p.coords.accuracy || 40, 500);
+      if(!konumIsareti){
+        harita.createPane('konumPane');
+        harita.getPane('konumPane').style.zIndex = 640;
+        konumDaire = L.circle(benim, { radius: dogruluk, color:'#007AFF', weight:1, fillOpacity:.10,
+                                       interactive:false, pane:'konumPane', renderer: L.svg({ pane:'konumPane' }) }).addTo(harita);
+        konumIsareti = L.marker(benim, { pane:'konumPane', interactive:false, keyboard:false,
+          icon: L.divIcon({ className:'konumNokta', html:'<span></span>', iconSize:[22,22], iconAnchor:[11,11] }) }).addTo(harita);
+      }else{
+        konumIsareti.setLatLng(benim);
+        konumDaire.setLatLng(benim); konumDaire.setRadius(dogruluk);
       }
-      bildir('Konum alınıyor…');
-      var ilk = true;
-      izId = navigator.geolocation.watchPosition(function(p){
-        benim = [p.coords.latitude, p.coords.longitude];
-        if(!konumIsareti){
-          konumDaire = L.circle(benim, { radius: p.coords.accuracy || 40, color:'#007AFF', weight:1, fillOpacity:.08 }).addTo(harita);
-          konumIsareti = L.circleMarker(benim, { radius:7, fillColor:'#007AFF', color:'#fff', weight:3, fillOpacity:1 }).addTo(harita);
-        }else{
-          konumIsareti.setLatLng(benim);
-          konumDaire.setLatLng(benim); konumDaire.setRadius(p.coords.accuracy || 40);
+      if(takip) harita.panTo(benim, { animate:true });
+      if(el('panelListe').classList.contains('acik') &&
+         (!sonListeKonum || uzaklik(sonListeKonum, benim) > 0.03)){
+        sonListeKonum = benim; listeCiz();
+      }
+    }
+    function konumIzle(){
+      if(!navigator.geolocation || izId != null || izinYok) return;
+      izId = navigator.geolocation.watchPosition(konumCiz, function(h){
+        if(h && h.code === 1){            /* izin verilmedi */
+          izinYok = true;
+          if(izId != null) navigator.geolocation.clearWatch(izId);
+          izId = null; takip = false; el('dgKonum').classList.remove('etkin');
+          bildir('Konum izni yok — telefon ayarlarından konuma izin verin');
         }
-        if(ilk){ ilk = false; harita.setView(benim, 16); el('dgKonum').classList.add('etkin'); }
-        if(el('panelListe').classList.contains('acik')) listeCiz();
-      }, function(){
-        bildir('Konum alınamadı — konum iznini kontrol edin');
-        if(izId != null) navigator.geolocation.clearWatch(izId);
-        izId = null;
-      }, { enableHighAccuracy:true, timeout:15000, maximumAge:5000 });
+        /* zaman aşımı / geçici hata: izleme sürer */
+      }, { enableHighAccuracy:true, timeout:20000, maximumAge:3000 });
+    }
+    function konumDurdur(){
+      if(izId != null){ navigator.geolocation.clearWatch(izId); izId = null; }
+    }
+    function konumDugmesi(){
+      if(!navigator.geolocation){ bildir('Cihaz konum desteklemiyor'); return; }
+      if(izinYok){ izinYok = false; }
+      konumIzle();
+      takip = true;
+      el('dgKonum').classList.add('etkin');
+      if(benim) harita.setView(benim, Math.max(harita.getZoom(), 17));
+      else{
+        bildir('Konum alınıyor…');
+        navigator.geolocation.getCurrentPosition(function(p){
+          konumCiz(p); harita.setView(benim, Math.max(harita.getZoom(), 17));
+        }, function(){}, { enableHighAccuracy:true, timeout:15000 });
+      }
     }
 
     /* ---- kurulum ---- */
@@ -997,7 +1024,13 @@
         bildir(hepsi ? 'Listedeki seçimler bırakıldı' : (liste.length + ' adres seçildi'));
       };
       el('secTemizle').onclick = function(){ secimTopluAyarla(seciliListe(), false); };
-      el('dgKonum').onclick = konumAc;
+      el('dgKonum').onclick = konumDugmesi;
+      harita.on('dragstart', function(){ takip = false; el('dgKonum').classList.remove('etkin'); });
+      /* Uygulama açılınca konumu göstermeye başla; arka planda pil harcamasın */
+      konumIzle();
+      document.addEventListener('visibilitychange', function(){
+        if(document.hidden) konumDurdur(); else konumIzle();
+      });
       el('dgSifirla').onclick = function(){
         if(confirm('Tüm "Yapıldı" işaretleri silinecek. Emin misiniz?')){
           try { localStorage.removeItem(V.depoAnahtar); } catch(e){}
