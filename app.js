@@ -7,7 +7,7 @@
 (function(){
   'use strict';
 
-  var UYGULAMA_SURUM = '1.1.0';
+  var UYGULAMA_SURUM = '1.1.1';
   var DB_AD = 'saha-harita', DB_SURUM = 1;
   var db = null;
 
@@ -498,7 +498,7 @@
            (secili[n.id] ? '★ KML seçiminden çıkar' : '☆ KML seçimine ekle') + '</button>';
       h += '<div class="yol">' +
            '<a href="https://www.google.com/maps/dir/?api=1&destination=' + n.lat + ',' + n.lng + '" target="_blank" rel="noopener">🧭 Google</a>' +
-           '<a href="https://maps.apple.com/?daddr=' + n.lat + ',' + n.lng + '&dirflg=d" target="_blank" rel="noopener">🍎 Apple</a>' +
+           '<a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + n.lat + ',' + n.lng + '" target="_blank" rel="noopener">👁 Sokak</a>' +
            '<a href="https://yandex.com.tr/harita/?rtext=~' + n.lat + ',' + n.lng + '&rtt=auto" target="_blank" rel="noopener">🚕 Yandex</a>' +
            '</div>';
       return h;
