@@ -263,26 +263,7 @@
     document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
   }
 
-  function pdfPaylas(){
-    if(!pdf.buf || !pdf.kayit) return;
-    var ad = 'Hane-' + (pdf.kayit.haneNo || 'belge') + '.pdf';
-    var blob = new Blob([pdf.buf], { type: 'application/pdf' });
-    try {
-      var dosya = new File([blob], ad, { type: 'application/pdf' });
-      if(navigator.canShare && navigator.canShare({ files: [dosya] })){
-        navigator.share({ files: [dosya], title: ad }).catch(function(){});
-        return;
-      }
-    } catch(e){}
-    var u = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = u; a.download = ad; a.target = '_blank'; a.rel = 'noopener';
-    document.body.appendChild(a); a.click();
-    setTimeout(function(){ a.remove(); URL.revokeObjectURL(u); }, 4000);
-  }
-
   el('pdfKapat').onclick = pdfKapat;
-  el('pdfPaylas').onclick = pdfPaylas;
   el('pdfArti').onclick = function(){ pdfZoom(pdf.zoom + 0.5); };
   el('pdfEksi').onclick = function(){ pdfZoom(pdf.zoom - 0.5); };
   pdfDokunmaKur();
@@ -486,14 +467,7 @@
 
     /* ---- baloncuk ---- */
     function telDugmeleri(k){
-      var h = '';
-      if(k.telNs){
-        h += '<a class="telBtn" href="' + kacis(k.telNs) + '">📞 NetSipp · ' + kacis(k.tel) + '</a>';
-        if(k.telUlus) h += '<a class="telAlt" href="tel:' + kacis(k.telUlus) + '">☎ Telefonla ara</a>';
-      }else if(k.telUlus){
-        h += '<a class="telBtn" href="tel:' + kacis(k.telUlus) + '">📞 ' + kacis(k.tel) + '</a>';
-      }
-      return h;
+      return k.telNs ? '<a class="telBtn" href="' + kacis(k.telNs) + '">📞 NetSipp ile ara · ' + kacis(k.tel) + '</a>' : '';
     }
     function baloncuk(n){
       var dur = noktaDurumu(n);
@@ -535,8 +509,7 @@
       var k = pdf.kayit; if(!k) return;
       var kd = kayitDurumu(k.id);
       var h = '';
-      if(k.telNs) h += '<a class="dg vurY" href="' + kacis(k.telNs) + '">📞 NetSipp</a>';
-      if(k.telUlus) h += '<a class="dg" href="tel:' + kacis(k.telUlus) + '">☎ ' + kacis(k.tel) + '</a>';
+      if(k.telNs) h += '<a class="dg vurY" href="' + kacis(k.telNs) + '">📞 NetSipp ile ara · ' + kacis(k.tel) + '</a>';
       h += '<button class="dg ' + (kd === 'tamam' ? 'vurY' : '') + '" data-kayit="' + kacis(k.id) + '"' +
            (kayitHarita[k.id] && kayitHarita[k.id].n ? ' data-nokta="' + kayitHarita[k.id].n.id + '"' : '') + '>' +
            (kd === 'tamam' ? '✓ Yapıldı' : 'Yapıldı işaretle') + '</button>';

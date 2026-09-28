@@ -249,3 +249,5 @@ a.dg{ text-decoration:none; display:inline-block; }
   .panel.acik{ transform:translate(-50%, 0); }
   body.pdfAcik .panel{ left:calc((100vw - var(--pdfEn)) / 2); width:min(520px, calc(100vw - var(--pdfEn) - 24px)); }
 }
+
+.pdfBosluk{ flex:none; width:64px; }
