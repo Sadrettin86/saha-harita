@@ -7,7 +7,7 @@
 (function(){
   'use strict';
 
-  var UYGULAMA_SURUM = '1.2.1';
+  var UYGULAMA_SURUM = '1.2.2';
   var DB_AD = 'saha-harita', DB_SURUM = 1;
   var db = null;
 
@@ -281,6 +281,9 @@
     V.konumsuz.forEach(function(k){ kayitHarita[k.id] = { k:k, n:null }; });
 
     var ZEMINLER = [
+      { ad:'OpenStreetMap', sunucu:'osm',
+        url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        atif:'© OpenStreetMap katkıcıları', enFazla:19 },
       { ad:'Sokak', sunucu:'esri',
         url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
         atif:'Esri · HERE · Garmin · © OpenStreetMap katkıcıları', enFazla:19 },
@@ -289,10 +292,7 @@
         atif:'Esri · Maxar · Earthstar Geographics', enFazla:19 },
       { ad:'Sade', sunucu:'carto',
         url:'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-        atif:'© OpenStreetMap katkıcıları · © CARTO', enFazla:20, altAlan:'abcd' },
-      { ad:'OpenStreetMap', sunucu:'osm',
-        url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        atif:'© OpenStreetMap katkıcıları', enFazla:19 }
+        atif:'© OpenStreetMap katkıcıları · © CARTO', enFazla:20, altAlan:'abcd' }
     ];
     var zeminKatman = null, zeminIdx = 0, zeminDenendi = {};
     var durumFiltre = 'tumu';
@@ -876,7 +876,7 @@
         }
       });
       zeminKatman.addTo(harita);
-      try { localStorage.setItem('saha_zemin', String(i)); } catch(e){}
+      try { localStorage.setItem('saha_zemin_v2', String(i)); } catch(e){}
       zeminListeCiz();
       if(!sessiz) bildir(z.ad + ' zemini');
     }
@@ -1076,7 +1076,7 @@
       harita = L.map('harita', { preferCanvas:true, zoomControl:false, tap:false, rotate:true,
                                   rotateControl:false, touchRotate:true, bearing:0 }).setView([41.0066, 28.7832], 13);
       var kz = 0;
-      try { var z = parseInt(localStorage.getItem('saha_zemin'), 10); if(!isNaN(z) && z >= 0 && z < ZEMINLER.length) kz = z; } catch(e){}
+      try { var z = parseInt(localStorage.getItem('saha_zemin_v2'), 10); if(!isNaN(z) && z >= 0 && z < ZEMINLER.length) kz = z; } catch(e){}
       zeminSec(kz, true);
 
       kumeVar = (typeof L.markerClusterGroup === 'function') && V.noktalar.length > 150;
