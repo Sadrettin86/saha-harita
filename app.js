@@ -7,7 +7,7 @@
 (function(){
   'use strict';
 
-  var UYGULAMA_SURUM = '2.0.0';
+  var UYGULAMA_SURUM = '2.1.0';
   var DB_AD = 'saha-harita', DB_SURUM = 1;
   var db = null;
 
@@ -327,6 +327,8 @@
     ];
     var zeminKatman = null, zeminIdx = 0, zeminDenendi = {};
     var durumFiltre = 'tumu';
+    var belgeFiltre = 'tumu';   /* tumu | var | yok — seçim cihazda hatırlanır */
+    try { var bf = localStorage.getItem('saha_belge_filtre'); if(bf === 'var' || bf === 'yok') belgeFiltre = bf; } catch(e){}
     var mahalleKapali = {};
     var aramaMetni = '';
     var secili = {};
@@ -626,8 +628,16 @@
 
     /* ---- filtreler ---- */
     function aramaMetniKayit(k){ return [k.ad, k.yardim, k.daire, k.tel, k.haneNo, k.adres].join(' '); }
+    /* Bir adreste birden çok hane olabilir: "olan" = en az birinin belgesi var,
+       "olmayan" = en az birinin belgesi yok */
+    function belgeUyar(kayitlar){
+      if(belgeFiltre === 'var') return kayitlar.some(function(k){ return !!k.pdf; });
+      if(belgeFiltre === 'yok') return kayitlar.some(function(k){ return !k.pdf; });
+      return true;
+    }
     function gecerli(n){
       if(mahalleKapali[n.mahalle]) return false;
+      if(!belgeUyar(n.kayitlar)) return false;
       if(durumFiltre !== 'tumu'){
         var d = noktaDurumu(n);
         if(durumFiltre === 'tamam' && d !== 'tamam') return false;
@@ -712,7 +722,9 @@
         }
       }
       /* Konumu bulunamayan kayıtlar — haritada yok, belgeleri açılabilir */
-      var ks = V.konumsuz.filter(function(k){ return !aramaMetni || norm(aramaMetniKayit(k)).indexOf(aramaMetni) !== -1; });
+      var ks = V.konumsuz.filter(function(k){
+        return belgeUyar([k]) && (!aramaMetni || norm(aramaMetniKayit(k)).indexOf(aramaMetni) !== -1);
+      });
       if(ks.length){
         var bas = document.createElement('div'); bas.className = 'istBas';
         bas.textContent = 'Konumu bulunamayan (' + ks.length + ')';
@@ -839,7 +851,7 @@
       return true;
     }
     function filtreIsaretiGuncelle(){
-      var aktif = durumFiltre !== 'tumu' || Object.keys(mahalleKapali).some(function(m){ return mahalleKapali[m]; });
+      var aktif = durumFiltre !== 'tumu' || belgeFiltre !== 'tumu' || Object.keys(mahalleKapali).some(function(m){ return mahalleKapali[m]; });
       el('dgMahalle').classList.toggle('isaretli', aktif);
     }
 
@@ -1141,6 +1153,20 @@
         filtreUygula();
         if(el('panelListe').classList.contains('acik')) listeCiz();
       });
+      function belgeSegmentCiz(){
+        document.querySelectorAll('#belgeSegment button').forEach(function(x){
+          x.classList.toggle('etkin', x.getAttribute('data-belge') === belgeFiltre);
+        });
+      }
+      document.querySelectorAll('#belgeSegment button').forEach(function(d){
+        d.onclick = function(){
+          belgeFiltre = d.getAttribute('data-belge');
+          try { localStorage.setItem('saha_belge_filtre', belgeFiltre); } catch(e){}
+          belgeSegmentCiz(); filtreIsaretiGuncelle(); filtreUygula();
+          if(el('panelListe').classList.contains('acik')) listeCiz();
+        };
+      });
+      belgeSegmentCiz(); filtreIsaretiGuncelle(); filtreUygula();
       document.querySelectorAll('#durumSegment button').forEach(function(d){
         d.onclick = function(){
           durumFiltre = d.getAttribute('data-durum');
