@@ -1,6 +1,6 @@
 /* Saha Haritası — çevrimdışı çalışma için servis çalışanı.
    Bu dosya derleme betiğiyle üretilir; SURUM uygulama dosyaları değişince değişir. */
-var SURUM = "saha-harita-69241d26c4";
+var SURUM = "saha-harita-6bf52ab9cc";
 var DOSYALAR = [
   "./",
   "app.css",

@@ -7,7 +7,7 @@
 (function(){
   'use strict';
 
-  var UYGULAMA_SURUM = '1.2.2';
+  var UYGULAMA_SURUM = '2.0.0';
   var DB_AD = 'saha-harita', DB_SURUM = 1;
   var db = null;
 
@@ -25,6 +25,37 @@
     d.className = 'bildir'; d.textContent = m; document.body.appendChild(d);
     setTimeout(function(){ d.remove(); }, 2600);
   }
+  /* ---- Simgeler: tek renkli çizgi simgeler (24'lük ızgara) ---- */
+  var IKON = {
+    ara:'<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/>',
+    katman:'<path d="M12 2.8 2.5 7.6l9.5 4.8 9.5-4.8z"/><path d="m2.5 12 9.5 4.8 9.5-4.8"/><path d="m2.5 16.4 9.5 4.8 9.5-4.8"/>',
+    harita:'<path d="M9 3.5 3 6v14.5l6-2.5 6 2.5 6-2.5V3.5L15 6z"/><path d="M9 3.5V18M15 6v14.5"/>',
+    liste:'<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" stroke-width="2.6"/>',
+    filtre:'<path d="M3.5 5h17l-6.5 8v5.5l-4 2V13z"/>',
+    ozet:'<path d="M5 20v-7M11 20V5M17 20v-10M3 20h18"/>',
+    paket:'<path d="M3.5 4.5h17v4h-17z"/><path d="M5 8.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8.5M10 12.5h4"/>',
+    konum:'<path d="M20.5 3.5 3.5 10.8l7.4 2.3 2.3 7.4z"/>',
+    yon:'<path d="M12 3 19 20.5 12 16.5 5 20.5z"/>',
+    belge:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
+    telefon:'<path d="M6.6 3.5h2.9l1.6 4.2-2.1 1.4a11 11 0 0 0 5.9 5.9l1.4-2.1 4.2 1.6v2.9a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.4 5.7a2 2 0 0 1 2.2-2.2z"/>',
+    daire:'<circle cx="12" cy="12" r="8.5"/>',
+    onay:'<circle cx="12" cy="12" r="8.5"/><path d="m8.3 12.3 2.6 2.6 5-5.3"/>',
+    yildiz:'<path d="m12 3.6 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/>',
+    tarif:'<path d="M11.3 2.9a1 1 0 0 1 1.4 0l8.4 8.4a1 1 0 0 1 0 1.4l-8.4 8.4a1 1 0 0 1-1.4 0l-8.4-8.4a1 1 0 0 1 0-1.4z"/><path d="M9.3 15v-3a1 1 0 0 1 1-1h4.5M13 8.8l2.2 2.2-2.2 2.2"/>',
+    goz:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+    disLink:'<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+    uyari:'<path d="M12 4.2 2.8 19.8h18.4z"/><path d="M12 10v4.5M12 17.2v.01"/>',
+    arti:'<path d="M12 5v14M5 12h14"/>', eksi:'<path d="M5 12h14"/>',
+    tik:'<path d="m5 12.5 4.5 4.5L19 7"/>',
+    pin:'<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'
+  };
+  function ik(ad, sinif){
+    return '<svg class="ik' + (sinif ? ' ' + sinif : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + (IKON[ad] || '') + '</svg>';
+  }
+  document.querySelectorAll('[data-ik]').forEach(function(e){ e.outerHTML = ik(e.getAttribute('data-ik')); });
+  var PUSULA_SVG = '<svg viewBox="0 0 30 30" aria-hidden="true"><path d="M15 4.5 18.2 15h-6.4z" fill="#FF3B30"/>' +
+                   '<path d="M15 25.5 11.8 15h6.4z" fill="#8E8E93"/></svg>';
+
   function uyar(baslik, mesaj){
     var b = el('uyariBar');
     b.style.display = 'block';
@@ -100,7 +131,7 @@
       try { p = JSON.parse(metin); }
       catch(e){ throw new Error('Dosya okunamadı — telefon paketi mi? (' + e.message + ')'); }
       if(!p || p.tur !== 'saha-harita-paket' || !p.noktalar){
-        throw new Error('Bu dosya bir telefon paketi değil. PC aracında Dışa aktar → 📱 Telefon paketi ile hazırlayın.');
+        throw new Error('Bu dosya bir telefon paketi değil. PC aracında Dışa aktar > Telefon paketi ile hazırlayın.');
       }
       el('yukleniyorYazi').textContent = 'Belgeler kaydediliyor…';
       var pdfler = {};
@@ -140,8 +171,8 @@
     if(!bagimsiz){
       el('anaEkranIpucu').style.display = 'block';
       el('anaEkranIpucu').innerHTML = ios
-        ? 'İpucu: Safari\'de <b>Paylaş</b> → <b>Ana Ekrana Ekle</b> ile uygulama gibi açabilirsiniz.'
-        : 'İpucu: Chrome menüsünden <b>Uygulamayı yükle</b> / <b>Ana ekrana ekle</b> ile uygulama gibi açabilirsiniz.';
+        ? 'Safari\'de <b>Paylaş</b> menüsünden <b>Ana Ekrana Ekle</b> ile uygulama gibi açabilirsiniz.'
+        : 'Chrome menüsünden <b>Uygulamayı yükle</b> ile uygulama gibi açabilirsiniz.';
     }
   }
 
@@ -355,7 +386,7 @@
     function secimBarGuncelle(){
       var n = seciliListe().length;
       var s = el('secSayi');
-      if(s) s.textContent = n ? ('Seçili: ' + n + ' adres') : 'Seçili yok — KML görünen listeyi alır';
+      if(s) s.textContent = n ? (n + ' adres seçili') : 'Seçim yok · KML görünenleri alır';
       var t = el('secTemizle');
       if(t) t.disabled = n === 0;
     }
@@ -366,10 +397,9 @@
       V.noktalar.forEach(function(n){
         n.kayitlar.forEach(function(k){ toplam++; if(d[k.id] === 'tamam') yapildi++; });
       });
-      el('sT').textContent = toplam;
-      el('sY').textContent = yapildi;
-      el('sB').textContent = toplam - yapildi;
-      el('sS').textContent = seciliListe().length;
+      el('sToplam').textContent = toplam;
+      el('sYapildi').textContent = yapildi;
+      el('ilerlemeDolgu').style.width = (toplam ? Math.round(yapildi / toplam * 100) : 0) + '%';
     }
 
     /* ---- istatistik ---- */
@@ -400,32 +430,29 @@
       var kutu = el('istIc'); if(!kutu) return;
       var s = istatistikHesapla(), h = '';
       h += '<div class="istKutu">' +
-        '<div class="istK"><b style="color:#34C759">' + s.kayitYapildi + '</b><span>Yapıldı</span></div>' +
-        '<div class="istK"><b style="color:#FF3B30">' + (s.kayit - s.kayitYapildi) + '</b><span>Kalan</span></div>' +
-        '<div class="istK"><b style="color:#007AFF">' + s.kayit + '</b><span>Toplam kayıt</span></div></div>';
+        '<div class="istK"><b style="color:var(--yesil)">' + s.kayitYapildi + '</b><span>Yapıldı</span></div>' +
+        '<div class="istK"><b>' + (s.kayit - s.kayitYapildi) + '</b><span>Kalan</span></div>' +
+        '<div class="istK"><b>' + s.kayit + '</b><span>Toplam hane</span></div></div>';
       h += '<div class="istBas">Mahalleye göre</div>';
-      h += '<table class="istT"><thead><tr><th>Mahalle</th><th>Adres</th><th>Yapıldı</th><th>Kalan</th><th>Seçimde</th></tr></thead><tbody>';
+      h += '<table class="istT"><thead><tr><th>Mahalle</th><th>Yapıldı</th><th>Kalan</th></tr></thead><tbody>';
       s.mahalleAdlari.forEach(function(m){
         var v = s.mahalle[m];
-        h += '<tr><td><span style="color:' + (V.mahalleRenk[m] || '#007AFF') + '">●</span> ' + kacis(m) + '</td>' +
-             '<td>' + v.adres + '</td><td>' + v.tamam + '</td><td>' + v.kalan + '</td><td>' + v.sec + '</td></tr>';
+        h += '<tr><td><i class="nok" style="background:' + (V.mahalleRenk[m] || '#007AFF') + '"></i>' + kacis(m) + '</td>' +
+             '<td>' + v.tamam + '</td><td>' + v.kalan + '</td></tr>';
       });
       h += '</tbody></table>';
-      h += '<div class="istBas">Ziyaret durumu × KML seçimi</div>';
-      h += '<table class="istT"><thead><tr><th>Adres durumu</th><th>Toplam</th><th>Seçimde</th><th>Dışında</th><th>Oran</th></tr></thead><tbody>';
+      h += '<div class="istBas">Ziyaret durumu ve KML seçimi</div>';
+      h += '<table class="istT"><thead><tr><th>Adres</th><th>Toplam</th><th>Seçimde</th></tr></thead><tbody>';
       [['Yapıldı','tamam','#34C759'],['Kısmen yapıldı','kismi','#FF9500'],['Yapılmadı','bekliyor','#FF3B30']].forEach(function(r){
-        h += '<tr><td><span style="color:' + r[2] + '">●</span> ' + r[0] + '</td><td>' + s.durum[r[1]] + '</td>' +
-             '<td><b>' + s.secDurum[r[1]] + '</b></td><td>' + s.disDurum[r[1]] + '</td>' +
-             '<td class="yz">' + yuzde(s.secDurum[r[1]], s.durum[r[1]]) + '</td></tr>';
+        h += '<tr><td><i class="nok" style="background:' + r[2] + '"></i>' + r[0] + '</td><td>' + s.durum[r[1]] + '</td>' +
+             '<td>' + s.secDurum[r[1]] + '</td></tr>';
       });
-      h += '<tr class="top"><td>Toplam adres</td><td>' + s.adres + '</td><td>' + s.secAdres + '</td>' +
-           '<td>' + (s.adres - s.secAdres) + '</td><td class="yz">' + yuzde(s.secAdres, s.adres) + '</td></tr>';
+      h += '<tr class="top"><td>Toplam</td><td>' + s.adres + '</td><td>' + s.secAdres + '</td></tr>';
       if(s.supheli){
-        h += '<tr><td>⚠️ Şüpheli konum</td><td>' + s.supheli + '</td><td>' + s.secSupheli + '</td>' +
-             '<td>' + (s.supheli - s.secSupheli) + '</td><td class="yz">' + yuzde(s.secSupheli, s.supheli) + '</td></tr>';
+        h += '<tr><td>Şüpheli konum</td><td>' + s.supheli + '</td><td>' + s.secSupheli + '</td></tr>';
       }
       h += '</tbody></table>';
-      h += '<div class="istBas">Hızlı seçim (görünen noktalara uygulanır)</div>';
+      h += '<div class="istBas">Hızlı seçim</div>';
       h += '<div class="istHizli">' +
            '<button class="dg" data-hizli="yapilmayan">Yapılmayanları seç</button>' +
            '<button class="dg" data-hizli="yapilan">Yapılanları seç</button>' +
@@ -450,7 +477,7 @@
         if(tur === 'supheli') return n.snf === 'supheli';
         return false;
       });
-      if(!liste.length){ bildir('Bu ölçüte uyan görünen nokta yok'); return; }
+      if(!liste.length){ bildir('Bu ölçüte uyan adres yok'); return; }
       secimTopluAyarla(liste, true);
       bildir(liste.length + ' adres seçime eklendi');
     }
@@ -465,43 +492,45 @@
       if(el('panelIst').classList.contains('acik')) istatistikCiz();
     }
 
-    /* ---- baloncuk ---- */
-    function telDugmeleri(k){
-      return k.telNs ? '<a class="telBtn" href="' + kacis(k.telNs) + '">📞 NetSipp ile ara · ' + kacis(k.tel) + '</a>' : '';
-    }
+    /* ---- baloncuk (hane kartı) ---- */
     function baloncuk(n){
       var dur = noktaDurumu(n);
-      var h = '<div class="pt">' + kacis(n.pinAd || (n.cadde + ' ' + n.kapi)) + '</div>';
-      h += '<div class="pa">📍 ' + kacis(n.mahalle) + '</div>';
-      if(n.snf === 'supheli') h += '<div class="pu">⚠️ Konum yaklaşık olabilir — sokakta teyit edin</div>';
+      var h = '<div class="b">';
+      h += '<div class="bBaslik">' + kacis(etiketMetni(n)) + '</div>';
+      h += '<div class="bAlt">' + kacis(n.mahalle) + '</div>';
+      if(n.snf === 'supheli') h += '<div class="bUyari">' + ik('uyari', 'k') + 'Konum yaklaşık, sokakta teyit edin</div>';
       n.kayitlar.forEach(function(k){
         var kd = kayitDurumu(k.id);
-        h += '<div class="kart">';
-        if(k.ad) h += '<div class="ad">👤 ' + kacis(k.ad) + (k.daire ? ' <span style="color:#888;font-weight:400">D:' + kacis(k.daire) + '</span>' : '') + '</div>';
-        else if(k.daire) h += '<div class="ad">🚪 Daire ' + kacis(k.daire) + '</div>';
-        if(k.haneNo) h += '<div class="dt">🏠 Hane ' + kacis(k.haneNo) + (k.kisi ? ' · ' + kacis(k.kisi) + ' kişi' : '') + '</div>';
-        if(k.yardim) h += '<div class="dt">🎁 ' + kacis(k.yardim) + '</div>';
-        if(k.tarih)  h += '<div class="dt">📅 ' + kacis(k.tarih) + '</div>';
-        h += k.pdf
-          ? '<button class="pdfBtn" data-pdf="' + kacis(k.id) + '">📄 Belgeyi aç</button>'
-          : '<div class="pdfYok">📄 Bu hanenin belgesi yok</div>';
-        h += telDugmeleri(k);
-        h += '<button class="yb ' + kd + '" data-kayit="' + kacis(k.id) + '" data-nokta="' + n.id + '">' +
-             (kd === 'tamam' ? '↺ Geri al' : '✓ Yapıldı') + '</button>';
+        var meta = [];
+        if(k.haneNo) meta.push('Hane ' + k.haneNo);
+        if(k.daire) meta.push('İç kapı ' + k.daire);
+        if(k.kisi) meta.push(k.kisi + ' kişi');
+        if(k.yardim) meta.push(k.yardim);
+        if(k.tarih) meta.push(k.tarih);
+        h += '<div class="bKayit">';
+        h += '<div class="bAd">' + kacis(k.ad || ('Hane ' + (k.haneNo || ''))) + '</div>';
+        if(meta.length) h += '<div class="bMeta">' + kacis(meta.join(' · ')) + '</div>';
+        h += '<div class="bEylem">';
+        h += k.pdf ? '<button class="btn btnMavi" data-pdf="' + kacis(k.id) + '">' + ik('belge', 'k') + 'Belge</button>'
+                   : '<span class="btn btnPasif">Belge yok</span>';
+        if(k.telNs) h += '<a class="btn btnYesil" href="' + kacis(k.telNs) + '">' + ik('telefon', 'k') + 'NetSipp ile ara</a>';
+        h += '</div>';
+        h += '<button class="bYapildi ' + kd + '" data-kayit="' + kacis(k.id) + '" data-nokta="' + n.id + '">' +
+             (kd === 'tamam' ? ik('onay', 'k') + 'Yapıldı' : ik('daire', 'k') + 'Yapıldı olarak işaretle') + '</button>';
         h += '</div>';
       });
       if(n.kayitlar.length > 1){
-        h += '<button class="yb ' + (dur === 'tamam' ? 'tamam' : 'bekliyor') + '" data-hepsi="' + n.id + '">' +
-             (dur === 'tamam' ? '↺ Hepsini geri al' : '✓ Hepsini yapıldı işaretle') + '</button>';
+        h += '<button class="bHepsi" data-hepsi="' + n.id + '">' +
+             (dur === 'tamam' ? 'Tümünün işaretini kaldır' : 'Tümünü yapıldı işaretle') + '</button>';
       }
-      h += '<button class="yb secBtn' + (secili[n.id] ? ' secik' : '') + '" data-sec="' + n.id + '">' +
-           (secili[n.id] ? '★ KML seçiminden çıkar' : '☆ KML seçimine ekle') + '</button>';
-      h += '<div class="yol">' +
-           '<a href="https://www.google.com/maps/dir/?api=1&destination=' + n.lat + ',' + n.lng + '" target="_blank" rel="noopener">🧭 Google</a>' +
-           '<a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + n.lat + ',' + n.lng + '" target="_blank" rel="noopener">👁 Sokak</a>' +
-           '<a href="https://yandex.com.tr/harita/?rtext=~' + n.lat + ',' + n.lng + '&rtt=auto" target="_blank" rel="noopener">🚕 Yandex</a>' +
+      h += '<div class="bLinkler">' +
+           '<a class="bLink" href="https://www.google.com/maps/dir/?api=1&destination=' + n.lat + ',' + n.lng + '" target="_blank" rel="noopener">' + ik('tarif') + 'Yol tarifi</a>' +
+           '<a class="bLink" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + n.lat + ',' + n.lng + '" target="_blank" rel="noopener">' + ik('goz') + 'Sokak görünümü</a>' +
+           '<a class="bLink" href="https://yandex.com.tr/harita/?rtext=~' + n.lat + ',' + n.lng + '&rtt=auto" target="_blank" rel="noopener">' + ik('disLink') + 'Yandex</a>' +
            '</div>';
-      return h;
+      h += '<button class="bSec' + (secili[n.id] ? ' secik' : '') + '" data-sec="' + n.id + '">' +
+           ik('yildiz', 'kk' + (secili[n.id] ? ' dolu' : '')) + (secili[n.id] ? 'KML seçiminde' : 'KML seçimine ekle') + '</button>';
+      return h + '</div>';
     }
 
     /* ---- PDF paneli ---- */
@@ -509,13 +538,13 @@
       var k = pdf.kayit; if(!k) return;
       var kd = kayitDurumu(k.id);
       var h = '';
-      if(k.telNs) h += '<a class="dg vurY" href="' + kacis(k.telNs) + '">📞 NetSipp ile ara · ' + kacis(k.tel) + '</a>';
-      h += '<button class="dg ' + (kd === 'tamam' ? 'vurY' : '') + '" data-kayit="' + kacis(k.id) + '"' +
+      if(k.telNs) h += '<a class="dg vurY" href="' + kacis(k.telNs) + '">' + ik('telefon', 'kk') + 'NetSipp ile ara</a>';
+      h += '<button class="dg' + (kd === 'tamam' ? ' vurY' : '') + '" data-kayit="' + kacis(k.id) + '"' +
            (kayitHarita[k.id] && kayitHarita[k.id].n ? ' data-nokta="' + kayitHarita[k.id].n.id + '"' : '') + '>' +
-           (kd === 'tamam' ? '✓ Yapıldı' : 'Yapıldı işaretle') + '</button>';
+           (kd === 'tamam' ? ik('tik', 'kk') + 'Yapıldı' : 'Yapıldı olarak işaretle') + '</button>';
       var r = kayitHarita[k.id];
       if(r && r.n && document.body.classList.contains('genis') === false){
-        h += '<button class="dg" id="pdfHaritada">🗺 Haritada</button>';
+        h += '<button class="dg" id="pdfHaritada">' + ik('pin', 'kk') + 'Haritada göster</button>';
       }
       el('pdfEylem').innerHTML = h;
       var hb = el('pdfHaritada');
@@ -629,7 +658,7 @@
     }
     function noktayaGit(n, baloncukAc){
       kapatPanel();
-      harita.setView([n.lat, n.lng], 18);
+      harita.setView([n.lat, n.lng], 18, { animate:false });
       var m = isaretler[n.id];
       if(!m || !baloncukAc) return;
       if(!katman.hasLayer(m)) katman.addLayer(m);
@@ -664,8 +693,8 @@
             (n.kayitlar[0] && n.kayitlar[0].ad ? ' · ' + kacis(n.kayitlar[0].ad) : '') +
             (tk ? ' · ' + kacis(tk.tel) : '') + '</span></span>' +
             (n._u != null ? '<span class="uz">' + (n._u < 1 ? Math.round(n._u*1000) + ' m' : n._u.toFixed(1) + ' km') + '</span>' : '') +
-            (pdfVar ? '<span class="pdfIkon" title="Belge">📄</span>' : '') +
-            '<span class="sc">' + (secili[n.id] ? '★' : '☆') + '</span>';
+            (pdfVar ? '<span class="pdfIkon" title="Belge">' + ik('belge', 'k') + '</span>' : '') +
+            '<span class="sc">' + ik('yildiz', 'k' + (secili[n.id] ? ' dolu' : '')) + '</span>';
           s.querySelector('.sc').onclick = function(ev){ ev.stopPropagation(); secimDegistir(n.id); };
           var pi = s.querySelector('.pdfIkon');
           if(pi) pi.onclick = function(ev){
@@ -678,7 +707,7 @@
         });
         if(liste.length > 400){
           var u = document.createElement('div');
-          u.className = 'bosluk'; u.textContent = '… ve ' + (liste.length - 400) + ' adres daha (arama ile daraltın)';
+          u.className = 'bosluk'; u.textContent = (liste.length - 400) + ' adres daha var, arama ile daraltın';
           kutu.appendChild(u);
         }
       }
@@ -686,7 +715,7 @@
       var ks = V.konumsuz.filter(function(k){ return !aramaMetni || norm(aramaMetniKayit(k)).indexOf(aramaMetni) !== -1; });
       if(ks.length){
         var bas = document.createElement('div'); bas.className = 'istBas';
-        bas.textContent = 'Konumu bulunamayan · ' + ks.length;
+        bas.textContent = 'Konumu bulunamayan (' + ks.length + ')';
         kutu.appendChild(bas);
         var sar2 = document.createElement('div'); sar2.className = 'listeKutu';
         kutu.appendChild(sar2);
@@ -696,7 +725,7 @@
           s.innerHTML = '<span class="no" style="background:' + noktaRengi(kd) + '"></span>' +
             '<span class="bl"><span class="a1">' + kacis(k.ad || ('Hane ' + k.haneNo)) + '</span>' +
             '<span class="a2">' + kacis(k.adres || '') + (k.tel ? ' · ' + kacis(k.tel) : '') + '</span></span>' +
-            (k.pdf ? '<span class="pdfIkon">📄</span>' : '');
+            (k.pdf ? '<span class="pdfIkon">' + ik('belge', 'k') + '</span>' : '');
           s.onclick = function(){ pdfAc(k.id); };
           sar2.appendChild(s);
         });
@@ -787,7 +816,7 @@
       if(!liste.length){ bildir('Aktarılacak nokta yok'); return; }
       dosyaVer(dosyaAdiTemiz(V.baslik + (kaynak === 'seçilen' ? ' (secim)' : '')) + '.kml',
                kmlUret(liste), 'application/vnd.google-earth.kml+xml');
-      bildir(liste.length + ' ' + kaynak + ' adres → KML');
+      bildir(liste.length + ' ' + kaynak + ' adres KML olarak hazır');
     }
 
     /* ---- paneller ---- */
@@ -826,22 +855,26 @@
       var kayit = 0, pdfli = 0;
       V.noktalar.forEach(function(n){ n.kayitlar.forEach(function(k){ kayit++; if(k.pdf) pdfli++; }); });
       V.konumsuz.forEach(function(k){ if(k.pdf) pdfli++; });
-      var h = '<table class="istT">' +
-        '<tr><td>Liste</td><td>' + kacis(V.baslik) + '</td></tr>' +
-        '<tr><td>Kaynak Excel</td><td>' + kacis(V.kaynak || '—') + '</td></tr>' +
-        '<tr><td>Hazırlandı</td><td>' + tarihYaz(V.olusturma) + '</td></tr>' +
-        '<tr><td>Bu cihaza yüklendi</td><td>' + tarihYaz(V.yuklenme) + '</td></tr>' +
-        '<tr><td>Haritadaki adres</td><td>' + V.noktalar.length + '</td></tr>' +
-        '<tr><td>Kayıt (hane)</td><td>' + kayit + '</td></tr>' +
-        '<tr><td>Belgesi olan</td><td>' + pdfli + '</td></tr>' +
-        (V.konumsuz.length ? '<tr><td>Konumu bulunamayan</td><td>' + V.konumsuz.length + '</td></tr>' : '') +
-        '<tr><td>Depolama</td><td id="depoBilgi">…</td></tr>' +
-        '</table>';
-      h += '<div class="istHizli">' +
-        '<label class="dg vur" for="paketDosya">Yeni paket yükle</label>' +
-        '<button class="dg" id="dgSil">Bu cihazdaki verileri sil</button></div>';
-      h += '<div class="istNot">Paket ve belgeler yalnızca bu cihazda saklanır, internete gönderilmez. ' +
-           'Telefon ve tablet ayrı ayrı yüklenir; "Yapıldı" işaretleri cihazlar arasında paylaşılmaz.</div>';
+      function satir(ad, deger, id){
+        return '<div class="satir"><span class="bl"><span class="a1">' + ad + '</span></span>' +
+               '<span class="deger"' + (id ? ' id="' + id + '"' : '') + '>' + deger + '</span></div>';
+      }
+      var h = '<div class="grupBas">Liste</div><div class="grup">' +
+        satir('Ad', kacis(V.baslik)) +
+        satir('Kaynak Excel', kacis(V.kaynak || '—')) +
+        satir('Hazırlandı', tarihYaz(V.olusturma)) +
+        satir('Bu cihaza yüklendi', tarihYaz(V.yuklenme)) + '</div>';
+      h += '<div class="grupBas">İçerik</div><div class="grup">' +
+        satir('Haritadaki adres', V.noktalar.length) +
+        satir('Hane', kayit) +
+        satir('Belgesi olan', pdfli) +
+        (V.konumsuz.length ? satir('Konumu bulunamayan', V.konumsuz.length) : '') +
+        satir('Kullanılan alan', '…', 'depoBilgi') + '</div>';
+      h += '<div class="grupBas"></div><div class="grup">' +
+        '<label class="satir eylem" for="paketDosya">Yeni paket yükle</label>' +
+        '<button class="satir eylem tehlike" id="dgSil">Bu cihazdaki verileri sil</button></div>';
+      h += '<div class="grupNot">Paket ve belgeler yalnızca bu cihazda saklanır, internete gönderilmez. ' +
+           'Telefon ve tablete ayrı ayrı yüklenir; Yapıldı işaretleri cihazlar arasında paylaşılmaz.</div>';
       h += '<div id="tani"></div>';
       el('paketIc').innerHTML = h;
       el('dgSil').onclick = function(){
@@ -852,7 +885,7 @@
       if(navigator.storage && navigator.storage.estimate){
         navigator.storage.estimate().then(function(t){
           var mb = function(x){ return (x / 1048576).toFixed(1) + ' MB'; };
-          el('depoBilgi').textContent = mb(t.usage || 0) + (t.quota ? ' / ' + mb(t.quota) : '');
+          el('depoBilgi').textContent = mb(t.usage || 0);
         }).catch(function(){ el('depoBilgi').textContent = '—'; });
       }else el('depoBilgi').textContent = '—';
       taniYaz();
@@ -889,17 +922,18 @@
         if(basarisiz[ZEMINLER[i].sunucu]){ if(aday === -1) aday = i; continue; }
         aday = i; break;
       }
-      if(aday === -1){ bildir('Harita zemini yüklenemedi — internet bağlantısını kontrol edin'); return; }
-      bildir('Zemin sunucusu yanıt vermedi → ' + ZEMINLER[aday].ad);
+      if(aday === -1){ bildir('Harita zemini yüklenemedi, internet bağlantısını kontrol edin'); return; }
+      bildir('Zemin sunucusu yanıt vermedi, ' + ZEMINLER[aday].ad + ' kullanılıyor');
       zeminSec(aday, true);
     }
     function zeminListeCiz(){
       var kutu = el('katmanIc'); if(!kutu) return;
       kutu.innerHTML = '';
       ZEMINLER.forEach(function(z, i){
-        var c = document.createElement('div');
-        c.className = 'cip' + (i === zeminIdx ? ' secili' : '');
-        c.textContent = z.ad;
+        var c = document.createElement('button');
+        c.className = 'satir';
+        c.innerHTML = '<span class="bl"><span class="a1">' + kacis(z.ad) + '</span></span>' +
+                      (i === zeminIdx ? '<span class="tik">' + ik('tik', 'k') + '</span>' : '');
         c.onclick = function(){ zeminDenendi = {}; zeminSec(i); };
         kutu.appendChild(c);
       });
@@ -917,7 +951,7 @@
     }
 
     /* ---- konum: uygulama açılınca başlar, mavi nokta anlık hareket eder ----
-       ◎ düğmesi haritayı konuma getirir ve "takip" açar (yürüdükçe harita da kayar);
+       Konum düğmesi haritayı konuma getirir ve "takip" açar (yürüdükçe harita da kayar);
        haritayı elle kaydırınca takip kapanır, nokta görünmeye devam eder. */
     var takip = false, sonListeKonum = null, izinYok = false;
     function konumCiz(p){
@@ -949,7 +983,7 @@
         if(h && h.code === 1){            /* izin verilmedi */
           izinYok = true;
           if(izId != null) navigator.geolocation.clearWatch(izId);
-          izId = null; takip = false; el('dgKonum').classList.remove('etkin');
+          izId = null; takip = false; konumIkonu();
           bildir('Konum izni yok — telefon ayarlarından konuma izin verin');
         }
         /* zaman aşımı / geçici hata: izleme sürer */
@@ -958,15 +992,19 @@
     function konumDurdur(){
       if(izId != null){ navigator.geolocation.clearWatch(izId); izId = null; }
     }
+    function konumIkonu(){
+      var b = el('dgKonum');
+      b.innerHTML = yonModu ? ik('yon', 'dolu') : ik('konum', takip ? 'dolu' : '');
+    }
     function konumDugmesi(){
       if(!navigator.geolocation){ bildir('Cihaz konum desteklemiyor'); return; }
       if(izinYok){ izinYok = false; }
       konumIzle();
       /* 1. dokunuş: konuma git + takip · 2. dokunuş: yön modu · 3. dokunuş: kuzey yukarı */
       if(takip && benim && !yonModu){ yonModuAc(); return; }
-      if(yonModu){ yonModuKapat(true); takip = true; el('dgKonum').classList.add('etkin'); return; }
+      if(yonModu){ yonModuKapat(true); takip = true; konumIkonu(); return; }
       takip = true;
-      el('dgKonum').classList.add('etkin');
+      konumIkonu();
       if(benim) harita.setView(benim, Math.max(harita.getZoom(), 17));
       else{
         bildir('Konum alınıyor…');
@@ -1046,7 +1084,7 @@
     function yonModuAc(){
       yonModu = true; sonYon = null;
       el('dgKonum').classList.add('etkin', 'yon');
-      el('dgKonum').textContent = '➤';
+      konumIkonu();
       pusulaBaslat().then(function(ok){
         if(!ok) bildir('Pusula kullanılamıyor — yürürken GPS yönü kullanılacak');
         else bildir('Harita gittiğiniz yöne dönüyor');
@@ -1056,14 +1094,15 @@
       yonModu = false; sonYon = null;
       pusulaDurdur();
       el('dgKonum').classList.remove('yon');
-      el('dgKonum').textContent = '◎';
+      konumIkonu();
       if(kuzeyeDon) harita.setBearing(0);
     }
     function pusulaGuncelle(){
       var b = harita.getBearing ? harita.getBearing() : 0;
       var egik = Math.abs(((b + 540) % 360) - 180) > 1;
       el('dgPusula').style.display = egik ? 'flex' : 'none';
-      el('pusulaOk').style.transform = 'rotate(' + b + 'deg)';
+      var sv = el('dgPusula').firstChild;
+      if(sv) sv.style.transform = 'rotate(' + b + 'deg)';
     }
 
     /* ---- kurulum ---- */
@@ -1086,7 +1125,7 @@
       katman.addTo(harita);
       V.noktalar.forEach(function(n){
         var m = L.circleMarker([n.lat, n.lng], stilVer(n));
-        m.bindPopup(function(){ return baloncuk(n); }, { maxWidth: 320, autoPanPaddingBottomRight: [20, 70] });
+        m.bindPopup(function(){ return baloncuk(n); }, { maxWidth: 300, minWidth: 292, autoPanPaddingTopLeft: [12, 12], autoPanPaddingBottomRight: [60, 16] });
         m.bindTooltip(kacis(etiketMetni(n)), { permanent:true, direction:'right', offset:[7, 0],
                                              className:'etiket', interactive:false });
         isaretler[n.id] = m;
@@ -1102,13 +1141,14 @@
         filtreUygula();
         if(el('panelListe').classList.contains('acik')) listeCiz();
       });
-      el('dgDurum').onclick = function(){
-        durumFiltre = durumFiltre === 'tumu' ? 'bekliyor' : (durumFiltre === 'bekliyor' ? 'tamam' : 'tumu');
-        this.textContent = durumFiltre === 'tumu' ? 'Tümü' : (durumFiltre === 'bekliyor' ? 'Kalanlar' : 'Yapılanlar');
-        this.className = 'dg' + (durumFiltre === 'tumu' ? '' : ' vur');
-        filtreIsaretiGuncelle(); filtreUygula();
-        if(el('panelListe').classList.contains('acik')) listeCiz();
-      };
+      document.querySelectorAll('#durumSegment button').forEach(function(d){
+        d.onclick = function(){
+          durumFiltre = d.getAttribute('data-durum');
+          document.querySelectorAll('#durumSegment button').forEach(function(x){ x.classList.toggle('etkin', x === d); });
+          filtreIsaretiGuncelle(); filtreUygula();
+          if(el('panelListe').classList.contains('acik')) listeCiz();
+        };
+      });
       el('dgHarita').onclick = kapatPanel;
       el('dgListe').onclick = function(){ if(panelAc('panelListe', 'dgListe')){ listeCiz(); secimBarGuncelle(); } };
       el('dgIst').onclick = function(){ if(panelAc('panelIst', 'dgIst')) istatistikCiz(); };
@@ -1124,10 +1164,12 @@
       };
       el('secTemizle').onclick = function(){ secimTopluAyarla(seciliListe(), false); };
       el('dgKonum').onclick = konumDugmesi;
+      konumIkonu();
+      el('dgPusula').innerHTML = PUSULA_SVG;
       harita.on('dragstart', function(){
         takip = false;
         if(yonModu) yonModuKapat(false);          /* elle kaydırınca yön takibi de durur, açı kalır */
-        el('dgKonum').classList.remove('etkin');
+        konumIkonu();
       });
       harita.on('rotate', pusulaGuncelle);
       el('dgPusula').onclick = function(){ if(yonModu) yonModuKapat(false); harita.setBearing(0); pusulaGuncelle(); };
