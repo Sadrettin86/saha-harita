@@ -7,7 +7,7 @@
 (function(){
   'use strict';
 
-  var UYGULAMA_SURUM = '1.2.0';
+  var UYGULAMA_SURUM = '1.2.1';
   var DB_AD = 'saha-harita', DB_SURUM = 1;
   var db = null;
 
@@ -1087,7 +1087,7 @@
       V.noktalar.forEach(function(n){
         var m = L.circleMarker([n.lat, n.lng], stilVer(n));
         m.bindPopup(function(){ return baloncuk(n); }, { maxWidth: 320, autoPanPaddingBottomRight: [20, 70] });
-        m.bindTooltip(kacis(etiketMetni(n)), { permanent:true, direction:'right', offset:[9, 0],
+        m.bindTooltip(kacis(etiketMetni(n)), { permanent:true, direction:'right', offset:[7, 0],
                                              className:'etiket', interactive:false });
         isaretler[n.id] = m;
         katman.addLayer(m);
