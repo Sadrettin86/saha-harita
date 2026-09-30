@@ -7,7 +7,7 @@
 (function(){
   'use strict';
 
-  var UYGULAMA_SURUM = '1.1.1';
+  var UYGULAMA_SURUM = '1.2.0';
   var DB_AD = 'saha-harita', DB_SURUM = 1;
   var db = null;
 
@@ -934,6 +934,9 @@
         konumIsareti.setLatLng(benim);
         konumDaire.setLatLng(benim); konumDaire.setRadius(dogruluk);
       }
+      if(yonModu && !yonDinleyici && p.coords.heading != null && !isNaN(p.coords.heading) && (p.coords.speed || 0) > 0.7){
+        gpsYon = p.coords.heading; yonUygula(gpsYon);
+      }
       if(takip) harita.panTo(benim, { animate:true });
       if(el('panelListe').classList.contains('acik') &&
          (!sonListeKonum || uzaklik(sonListeKonum, benim) > 0.03)){
@@ -959,6 +962,9 @@
       if(!navigator.geolocation){ bildir('Cihaz konum desteklemiyor'); return; }
       if(izinYok){ izinYok = false; }
       konumIzle();
+      /* 1. dokunuş: konuma git + takip · 2. dokunuş: yön modu · 3. dokunuş: kuzey yukarı */
+      if(takip && benim && !yonModu){ yonModuAc(); return; }
+      if(yonModu){ yonModuKapat(true); takip = true; el('dgKonum').classList.add('etkin'); return; }
       takip = true;
       el('dgKonum').classList.add('etkin');
       if(benim) harita.setView(benim, Math.max(harita.getZoom(), 17));
@@ -970,6 +976,96 @@
       }
     }
 
+    /* ---- nokta etiketi: SOKAK dış kapı/iç kapı (aynı binada birden çok daire varsa virgülle) ---- */
+    function etiketMetni(n){
+      var daireler = [];
+      n.kayitlar.forEach(function(k){
+        var d = String(k.daire || '').trim();
+        if(d && daireler.indexOf(d) === -1) daireler.push(d);
+      });
+      var dis = String(n.kapi || '').trim();
+      var no = dis + (daireler.length ? '/' + daireler.join(',') : '');
+      return ((n.cadde || '') + ' ' + no).replace(/\s+/g, ' ').trim() || n.pinAd || '';
+    }
+    /* Etiketler uzaktan bakınca kalabalık yapmasın: yakınlaşınca görünür */
+    var ETIKET_ZOOM = 16;
+    function etiketGorunurluk(){
+      el('harita').classList.toggle('etiketGizli', harita.getZoom() < ETIKET_ZOOM);
+    }
+
+    /* ---- yön: harita gidilen yöne döner ----
+       Pusula (telefonun manyetik sensörü) varsa o kullanılır — dururken de çalışır;
+       yoksa GPS'in hareket yönü. leaflet-rotate'te bearing = -yön. */
+    var yonModu = false, yonDinleyici = null, sonYon = null, gpsYon = null, yonZaman = 0;
+    function ekranAcisi(){
+      var a = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle
+            : (typeof window.orientation === 'number' ? window.orientation : 0);
+      return a || 0;
+    }
+    function yonUygula(yon){
+      if(!yonModu || yon == null || isNaN(yon)) return;
+      yon = (yon + 360) % 360;
+      if(sonYon != null){
+        var fark = ((yon - sonYon + 540) % 360) - 180;
+        if(Math.abs(fark) < 3) return;          /* küçük titremeleri at */
+        yon = (sonYon + fark * 0.5 + 360) % 360; /* yumuşat */
+      }
+      var simdi = Date.now();
+      if(simdi - yonZaman < 120) return;          /* saniyede ~8 güncelleme */
+      yonZaman = simdi; sonYon = yon;
+      harita.setBearing(-yon);
+      if(takip && benim) harita.panTo(benim, { animate:false });
+    }
+    function pusulaOlayi(e){
+      var yon = null;
+      if(typeof e.webkitCompassHeading === 'number') yon = e.webkitCompassHeading + ekranAcisi();       /* iOS */
+      else if(e.absolute && typeof e.alpha === 'number') yon = 360 - e.alpha + ekranAcisi();           /* Android */
+      if(yon != null) yonUygula(yon);
+    }
+    function pusulaBaslat(){
+      if(yonDinleyici) return Promise.resolve(true);
+      var baslat = function(){
+        yonDinleyici = pusulaOlayi;
+        if('ondeviceorientationabsolute' in window) window.addEventListener('deviceorientationabsolute', yonDinleyici);
+        else window.addEventListener('deviceorientation', yonDinleyici);
+        return true;
+      };
+      if(window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function'){
+        return DeviceOrientationEvent.requestPermission()               /* iOS: dokunuşla izin ister */
+          .then(function(d){ return d === 'granted' ? baslat() : false; })
+          .catch(function(){ return false; });
+      }
+      return Promise.resolve(window.DeviceOrientationEvent ? baslat() : false);
+    }
+    function pusulaDurdur(){
+      if(!yonDinleyici) return;
+      window.removeEventListener('deviceorientationabsolute', yonDinleyici);
+      window.removeEventListener('deviceorientation', yonDinleyici);
+      yonDinleyici = null;
+    }
+    function yonModuAc(){
+      yonModu = true; sonYon = null;
+      el('dgKonum').classList.add('etkin', 'yon');
+      el('dgKonum').textContent = '➤';
+      pusulaBaslat().then(function(ok){
+        if(!ok) bildir('Pusula kullanılamıyor — yürürken GPS yönü kullanılacak');
+        else bildir('Harita gittiğiniz yöne dönüyor');
+      });
+    }
+    function yonModuKapat(kuzeyeDon){
+      yonModu = false; sonYon = null;
+      pusulaDurdur();
+      el('dgKonum').classList.remove('yon');
+      el('dgKonum').textContent = '◎';
+      if(kuzeyeDon) harita.setBearing(0);
+    }
+    function pusulaGuncelle(){
+      var b = harita.getBearing ? harita.getBearing() : 0;
+      var egik = Math.abs(((b + 540) % 360) - 180) > 1;
+      el('dgPusula').style.display = egik ? 'flex' : 'none';
+      el('pusulaOk').style.transform = 'rotate(' + b + 'deg)';
+    }
+
     /* ---- kurulum ---- */
     function kur(){
       el('baslik').textContent = V.baslik || 'Saha Haritası';
@@ -977,7 +1073,8 @@
       el('uygulama').style.display = '';
       if(typeof L === 'undefined'){ uyar('Harita kütüphanesi yüklenemedi', ' Sayfayı yenileyin.'); return; }
       secimYukle();
-      harita = L.map('harita', { preferCanvas:true, zoomControl:false, tap:false }).setView([41.0066, 28.7832], 13);
+      harita = L.map('harita', { preferCanvas:true, zoomControl:false, tap:false, rotate:true,
+                                  rotateControl:false, touchRotate:true, bearing:0 }).setView([41.0066, 28.7832], 13);
       var kz = 0;
       try { var z = parseInt(localStorage.getItem('saha_zemin'), 10); if(!isNaN(z) && z >= 0 && z < ZEMINLER.length) kz = z; } catch(e){}
       zeminSec(kz, true);
@@ -990,6 +1087,8 @@
       V.noktalar.forEach(function(n){
         var m = L.circleMarker([n.lat, n.lng], stilVer(n));
         m.bindPopup(function(){ return baloncuk(n); }, { maxWidth: 320, autoPanPaddingBottomRight: [20, 70] });
+        m.bindTooltip(kacis(etiketMetni(n)), { permanent:true, direction:'right', offset:[9, 0],
+                                             className:'etiket', interactive:false });
         isaretler[n.id] = m;
         katman.addLayer(m);
       });
@@ -1025,11 +1124,20 @@
       };
       el('secTemizle').onclick = function(){ secimTopluAyarla(seciliListe(), false); };
       el('dgKonum').onclick = konumDugmesi;
-      harita.on('dragstart', function(){ takip = false; el('dgKonum').classList.remove('etkin'); });
+      harita.on('dragstart', function(){
+        takip = false;
+        if(yonModu) yonModuKapat(false);          /* elle kaydırınca yön takibi de durur, açı kalır */
+        el('dgKonum').classList.remove('etkin');
+      });
+      harita.on('rotate', pusulaGuncelle);
+      el('dgPusula').onclick = function(){ if(yonModu) yonModuKapat(false); harita.setBearing(0); pusulaGuncelle(); };
+      harita.on('zoomend', etiketGorunurluk);
+      etiketGorunurluk();
       /* Uygulama açılınca konumu göstermeye başla; arka planda pil harcamasın */
       konumIzle();
       document.addEventListener('visibilitychange', function(){
-        if(document.hidden) konumDurdur(); else konumIzle();
+        if(document.hidden){ konumDurdur(); pusulaDurdur(); }
+        else{ konumIzle(); if(yonModu) pusulaBaslat(); }
       });
       el('dgSifirla').onclick = function(){
         if(confirm('Tüm "Yapıldı" işaretleri silinecek. Emin misiniz?')){
