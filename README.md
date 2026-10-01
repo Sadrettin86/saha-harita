@@ -12,6 +12,13 @@ Hane adreslerini haritada gösterir; noktaya dokununca o haneye ait PDF belgesi 
 2. **Dışa aktar → 📱 Telefon paketi** ile `saha-paketi-….json` alınır.
 3. Dosya telefona/tablete gönderilir, bu uygulamada **Telefon paketini seç** ile açılır.
 
+## Bilgisayarda: saha haritası dosyası
+
+PC aracının **Dışa aktar → Saha haritası** çıktısı da bu sitedeki arayüzü (`ui.js`, `app.js`, `app.css`) kullanır;
+dosyanın içinde yalnızca veri bulunur. Bu kipte belgeler, **Belgeler** sekmesinden seçilen klasörden
+(genelde İndirilenler) okunur ve oradan telefon paketi oluşturulabilir. Dosyadan açılınca OpenStreetMap
+kare vermediği için varsayılan zemin Carto'dur.
+
 ## Gizlilik
 
 Bu depoda yalnızca uygulamanın kodu vardır; hane bilgisi, PDF veya API anahtarı yoktur.

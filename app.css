@@ -296,3 +296,21 @@ label.dg{ cursor:pointer; }
 }
 .secimBar .sy{ flex-basis:100%; }
 .istT td:first-child{ text-transform:none; }
+
+/* Etiketteki belge işareti */
+.leaflet-tooltip.etiket .etiketIk{ width:11px; height:11px; stroke-width:2.2; margin:-2px 3px 0 0; color:#007AFF; }
+
+/* Seçenek sayfası (iOS eylem sayfası) */
+.eylemPerde{ position:fixed; inset:0; z-index:6000; background:rgba(0,0,0,.32); display:flex;
+  align-items:flex-end; justify-content:center; padding:10px 10px calc(10px + env(safe-area-inset-bottom)); }
+.eylemKutu{ width:min(420px, 100%); display:flex; flex-direction:column; gap:8px; animation:yukari .25s cubic-bezier(.32,.72,0,1); }
+.eylemGrup{ background:var(--kart); border-radius:14px; overflow:hidden; }
+.eylemBaslik{ font-size:13px; color:var(--ikincil); text-align:center; padding:13px 16px; border-bottom:.5px solid var(--ayrac); }
+.eylemGrup button{ width:100%; min-height:56px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  color:var(--mavi); font-size:18px; }
+.eylemGrup button + button{ border-top:.5px solid var(--ayrac); }
+.eylemGrup button small{ font-size:12px; color:var(--ikincil); margin-top:1px; }
+.eylemGrup button:disabled{ opacity:.35; }
+.eylemGrup button:active{ background:var(--dolgu); }
+.eylemGrup .vazgec{ font-weight:600; }
+@media (min-width:700px){ .eylemPerde{ align-items:center; } }

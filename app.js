@@ -7,7 +7,11 @@
 (function(){
   'use strict';
 
-  var UYGULAMA_SURUM = '2.1.0';
+  var UYGULAMA_SURUM = '2.2.0';
+  /* Gömülü kip: PC aracının ürettiği saha haritası dosyası (genelde file:// ile açılır).
+     Veri dosyanın içinde gelir; belgeler bilgisayardaki bir klasörden okunur. */
+  var GOMULU = window.__SAHA_VERI__ || null;
+  var DOSYADAN = location.protocol === 'file:';
   var DB_AD = 'saha-harita', DB_SURUM = 1;
   var db = null;
 
@@ -180,7 +184,8 @@
      PDF görüntüleyici
      ------------------------------------------------------------------ */
   if(window.pdfjsLib){
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs/pdf.worker.min.js';
+    /* Gömülü kipte worker <script> ile yüklenir (window.pdfjsWorker) ve ana iş parçacığında çalışır */
+    if(!GOMULU) pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs/pdf.worker.min.js';
   }
   var pdf = { kayit:null, doc:null, buf:null, zoom:1, gorev:0 };
   var pdfOlaylar = { acildi:null, kapandi:null };
@@ -299,6 +304,115 @@
   el('pdfEksi').onclick = function(){ pdfZoom(pdf.zoom - 0.5); };
   pdfDokunmaKur();
 
+  function dbYaz(depo, anahtar, deger){
+    return new Promise(function(ok, red){
+      var t = db.transaction(depo, 'readwrite');
+      t.objectStore(depo).put(deger, anahtar);
+      t.oncomplete = function(){ ok(); };
+      t.onerror = function(){ red(t.error); };
+    });
+  }
+  function haneTemiz(v){ return String(v == null ? '' : v).replace(/\D/g, '').replace(/^0+/, ''); }
+  function trNorm(s){
+    return String(s == null ? '' : s).replace(/[İIı]/g,'i').toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+  }
+  function karma(s){
+    var h = 5381;
+    for(var i = 0; i < s.length; i++){ h = ((h * 33) ^ s.charCodeAt(i)) >>> 0; }
+    return h.toString(36);
+  }
+  /* PDF metninden "Hane No" (PC aracındakiyle aynı kural) */
+  function haneNoMetindenBul(ogeler){
+    var o = ogeler.map(function(i){
+      return { s:String(i.str || ''), x:i.transform ? i.transform[4] : 0, y:i.transform ? i.transform[5] : 0 };
+    }).filter(function(i){ return i.s.trim(); });
+    for(var i = 0; i < o.length; i++){
+      if(!/^hane no( |$)/.test(trNorm(o[i].s))) continue;
+      var ayni = trNorm(o[i].s).match(/^hane no (\d{4,12})\b/);
+      if(ayni) return haneTemiz(ayni[1]);
+      var e = o[i], enIyi = null;
+      o.forEach(function(c){
+        var t = c.s.trim();
+        if(!/^\d{4,12}$/.test(t) || Math.abs(c.y - e.y) > 3 || c.x <= e.x) return;
+        if(!enIyi || c.x < enIyi.x) enIyi = c;
+      });
+      if(enIyi) return haneTemiz(enIyi.s);
+      for(var j = i + 1; j < Math.min(o.length, i + 5); j++){
+        var t2 = o[j].s.trim();
+        if(/^[:.\s]*$/.test(t2)) continue;
+        if(/^:?\s*\d{4,12}$/.test(t2)) return haneTemiz(t2);
+        break;
+      }
+    }
+    var m = trNorm(o.map(function(i){ return i.s; }).join(' ')).match(/\bhane no (\d{4,12})\b/);
+    return m ? haneTemiz(m[1]) : '';
+  }
+  function pdfHaneNo(dosya){
+    return dosya.arrayBuffer().then(function(buf){
+      return pdfjsLib.getDocument({ data:new Uint8Array(buf), isEvalSupported:false }).promise;
+    }).then(function(doc){
+      var sayfa = Math.min(doc.numPages, 2), p = 1;
+      function sonraki(){
+        if(p > sayfa){ doc.destroy(); return ''; }
+        return doc.getPage(p++).then(function(pg){ return pg.getTextContent(); }).then(function(tc){
+          var h = haneNoMetindenBul(tc.items);
+          if(h){ doc.destroy(); return h; }
+          return sonraki();
+        });
+      }
+      return sonraki();
+    }).catch(function(){ return ''; });
+  }
+
+  /* iOS tarzı seçenek sayfası. Seçilen değeri ya da vazgeçilirse null döner */
+  function secimIste(baslik, secenekler){
+    return new Promise(function(cozum){
+      var perde = document.createElement('div');
+      perde.className = 'eylemPerde';
+      var h = '<div class="eylemKutu"><div class="eylemGrup"><div class="eylemBaslik">' + kacis(baslik) + '</div>';
+      secenekler.forEach(function(o, i){
+        h += '<button data-i="' + i + '"' + (o.pasif ? ' disabled' : '') + '><span>' + kacis(o.ad) + '</span>' +
+             (o.not ? '<small>' + kacis(o.not) + '</small>' : '') + '</button>';
+      });
+      h += '</div><div class="eylemGrup"><button class="vazgec">Vazgeç</button></div></div>';
+      perde.innerHTML = h;
+      function kapat(d){ perde.remove(); cozum(d); }
+      perde.addEventListener('click', function(e){
+        var b = e.target.closest('button');
+        if(!b){ if(e.target === perde) kapat(null); return; }
+        if(b.classList.contains('vazgec')) kapat(null);
+        else kapat(secenekler[+b.getAttribute('data-i')].deger);
+      });
+      document.body.appendChild(perde);
+    });
+  }
+  function indirBlob(blob, ad){
+    var u = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = u; a.download = ad; a.style.display = 'none';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ a.remove(); URL.revokeObjectURL(u); }, 3000);
+  }
+  function dosyaBase64(f){
+    return new Promise(function(ok, red){
+      var fr = new FileReader();
+      fr.onload = function(){ ok(String(fr.result).split(',')[1] || ''); };
+      fr.onerror = function(){ red(fr.error); };
+      fr.readAsDataURL(f);
+    });
+  }
+
+  /* Belgenin içeriği: telefonda pakette (IndexedDB), gömülü kipte seçilen klasörde */
+  var belgeDosya = {};          /* hane no -> File (gömülü kip) */
+  var belgeTarandi = false;
+  function pdfVeriAl(k){
+    if(GOMULU){
+      var f = belgeDosya[haneTemiz(k.haneNo)];
+      return f ? f.arrayBuffer() : Promise.resolve(null);
+    }
+    return dbAl('pdf', k.pdf);
+  }
+
   /* ------------------------------------------------------------------
      Saha uygulaması (PC aracının saha haritasıyla aynı mantık)
      ------------------------------------------------------------------ */
@@ -314,7 +428,7 @@
     var ZEMINLER = [
       { ad:'OpenStreetMap', sunucu:'osm',
         url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        atif:'© OpenStreetMap katkıcıları', enFazla:19 },
+        atif:'© OpenStreetMap katkıcıları', enFazla:19, dosyadaYok:true },
       { ad:'Sokak', sunucu:'esri',
         url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
         atif:'Esri · HERE · Garmin · © OpenStreetMap katkıcıları', enFazla:19 },
@@ -329,6 +443,7 @@
     var durumFiltre = 'tumu';
     var belgeFiltre = 'tumu';   /* tumu | var | yok — seçim cihazda hatırlanır */
     try { var bf = localStorage.getItem('saha_belge_filtre'); if(bf === 'var' || bf === 'yok') belgeFiltre = bf; } catch(e){}
+    if(GOMULU) belgeFiltre = 'tumu';   /* belgeler her açılışta yeniden okunur */
     var mahalleKapali = {};
     var aramaMetni = '';
     var secili = {};
@@ -514,7 +629,7 @@
         if(meta.length) h += '<div class="bMeta">' + kacis(meta.join(' · ')) + '</div>';
         h += '<div class="bEylem">';
         h += k.pdf ? '<button class="btn btnMavi" data-pdf="' + kacis(k.id) + '">' + ik('belge', 'k') + 'Belge</button>'
-                   : '<span class="btn btnPasif">Belge yok</span>';
+                   : '<span class="btn btnPasif">' + (GOMULU && !belgeTarandi ? 'Belge bakılmadı' : 'Belge yok') + '</span>';
         if(k.telNs) h += '<a class="btn btnYesil" href="' + kacis(k.telNs) + '">' + ik('telefon', 'k') + 'NetSipp ile ara</a>';
         h += '</div>';
         h += '<button class="bYapildi ' + kd + '" data-kayit="' + kacis(k.id) + '" data-nokta="' + n.id + '">' +
@@ -576,7 +691,7 @@
         return;
       }
       if(pdf.doc){ try { pdf.doc.destroy(); } catch(e){} pdf.doc = null; }
-      dbAl('pdf', k.pdf).then(function(buf){
+      pdfVeriAl(k).then(function(buf){
         if(pdf.kayit !== k) return;
         if(!buf) throw new Error('Belge bu cihazda bulunamadı — paketi yeniden yükleyin');
         pdf.buf = buf;
@@ -921,9 +1036,10 @@
         }
       });
       zeminKatman.addTo(harita);
-      try { localStorage.setItem('saha_zemin_v2', String(i)); } catch(e){}
+      try { localStorage.setItem(DOSYADAN ? 'saha_zemin_dosya' : 'saha_zemin_v2', String(i)); } catch(e){}
       zeminListeCiz();
-      if(!sessiz) bildir(z.ad + ' zemini');
+      if(!sessiz) bildir(z.dosyadaYok && DOSYADAN ? 'OpenStreetMap bilgisayardan açılan dosyada harita vermez'
+                                                  : z.ad + ' zemini');
     }
     function otomatikZemin(){
       var basarisiz = {};
@@ -944,7 +1060,8 @@
       ZEMINLER.forEach(function(z, i){
         var c = document.createElement('button');
         c.className = 'satir';
-        c.innerHTML = '<span class="bl"><span class="a1">' + kacis(z.ad) + '</span></span>' +
+        c.innerHTML = '<span class="bl"><span class="a1">' + kacis(z.ad) + '</span>' +
+                      (z.dosyadaYok && DOSYADAN ? '<span class="a2">Bilgisayardan açılan dosyada çalışmaz</span>' : '') + '</span>' +
                       (i === zeminIdx ? '<span class="tik">' + ik('tik', 'k') + '</span>' : '');
         c.onclick = function(){ zeminDenendi = {}; zeminSec(i); };
         kutu.appendChild(c);
@@ -1027,6 +1144,10 @@
     }
 
     /* ---- nokta etiketi: SOKAK dış kapı/iç kapı (aynı binada birden çok daire varsa virgülle) ---- */
+    function etiketHtml(n){
+      var belgeli = n.kayitlar.some(function(k){ return !!k.pdf; });
+      return (belgeli ? ik('belge', 'etiketIk') : '') + kacis(etiketMetni(n));
+    }
     function etiketMetni(n){
       var daireler = [];
       n.kayitlar.forEach(function(k){
@@ -1117,6 +1238,223 @@
       if(sv) sv.style.transform = 'rotate(' + b + 'deg)';
     }
 
+    /* ==================================================================
+       Gömülü kip: belge klasörü ve telefon paketi
+       ================================================================== */
+    var belgeDurum = { klasor:'', zaman:null, tarama:'', okunan:0, toplamPdf:0 };
+    function tumKayitlar(){
+      var l = [];
+      V.noktalar.forEach(function(n){ n.kayitlar.forEach(function(k){ l.push(k); }); });
+      return l.concat(V.konumsuz);
+    }
+    function belgeSayilari(){
+      var t = tumKayitlar();
+      return { hane:t.length, belgeli:t.filter(function(k){ return !!k.pdf; }).length };
+    }
+    function belgePanelCiz(){
+      if(!el('panelPaket').classList.contains('acik')) return;
+      var say = belgeSayilari();
+      function satir(ad, deger){
+        return '<div class="satir"><span class="bl"><span class="a1">' + ad + '</span></span>' +
+               '<span class="deger">' + deger + '</span></div>';
+      }
+      var h = '<div class="grupBas">Belge klasörü</div><div class="grup">' +
+        satir('Klasör', kacis(belgeDurum.klasor || 'seçilmedi')) +
+        satir('Belgesi bulunan', belgeTarandi ? (say.belgeli + ' / ' + say.hane + ' hane') : '—') +
+        satir('Son kontrol', belgeDurum.zaman ? belgeDurum.zaman.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' }) : '—') +
+        (belgeDurum.tarama ? satir('Durum', kacis(belgeDurum.tarama)) : '') + '</div>';
+      h += '<div class="grupBas"></div><div class="grup">' +
+        '<button class="satir eylem" id="dgBelgeKontrol">' + (belgeDurum.klasor ? 'Belgeleri yeniden kontrol et' : 'Klasör seç ve belgeleri kontrol et') + '</button>' +
+        (belgeDurum.klasor ? '<button class="satir eylem" id="dgBelgeKlasor">Başka klasör seç</button>' : '') + '</div>';
+      h += '<div class="grupNot">Genelde İndirilenler klasörü. Tarayıcı, güvenlik gereği klasörü ilk seferde sizin seçmenizi ister; ' +
+           'Chrome ve Edge sonraki açılışlarda hatırlar. Okunan PDF\'ler hatırlanır, sonraki kontrollerde yalnızca yeni gelenler okunur. ' +
+           'Aynı haneye ait birden çok PDF varsa en yeni indirilen kullanılır.</div>';
+      h += '<div class="grupBas">Telefon</div><div class="grup">' +
+        '<button class="satir eylem" id="dgTelPaket">Telefon paketi oluştur</button></div>' +
+        '<div class="grupNot">Saha uygulamasında açılan dosya. Belgeler pakete eklenir.</div>';
+      el('paketIc').innerHTML = h;
+      el('dgBelgeKontrol').onclick = function(){ belgeleriKontrol(false); };
+      if(el('dgBelgeKlasor')) el('dgBelgeKlasor').onclick = function(){ belgeleriKontrol(true); };
+      el('dgTelPaket').onclick = telefonPaketi;
+    }
+
+    /* Klasördeki PDF dosyalarını al: Chrome/Edge'de klasör hatırlanır, diğerlerinde her seferinde seçilir */
+    function klasordenDosyalar(yeniKlasor){
+      if(window.showDirectoryPicker && db){
+        var tutamac = null;
+        return (yeniKlasor ? Promise.resolve(null) : dbAl('meta', 'belgeKlasoru').catch(function(){ return null; }))
+          .then(function(h){
+            if(!h) return null;
+            return h.queryPermission({ mode:'read' }).then(function(iz){
+              return iz === 'granted' ? iz : h.requestPermission({ mode:'read' });
+            }).then(function(iz){ return iz === 'granted' ? h : null; }).catch(function(){ return null; });
+          }).then(function(h){
+            if(h) return h;
+            return window.showDirectoryPicker({ id:'saha-belgeler', startIn:'downloads', mode:'read' }).then(function(y){
+              return dbYaz('meta', 'belgeKlasoru', y).catch(function(){}).then(function(){ return y; });
+            });
+          }).then(function(h){
+            tutamac = h;
+            var dosyalar = [], it = h.values();
+            function adim(){
+              return it.next().then(function(r){
+                if(r.done) return dosyalar;
+                var g = r.value;
+                if(g.kind === 'file' && /\.pdf$/i.test(g.name)){
+                  return g.getFile().then(function(f){ dosyalar.push(f); return adim(); });
+                }
+                return adim();
+              });
+            }
+            return adim();
+          }).then(function(d){ return { ad: tutamac.name, dosyalar: d }; });
+      }
+      /* Yedek: klasör seçme penceresi (hatırlanmaz) */
+      return new Promise(function(ok, red){
+        var inp = document.createElement('input');
+        inp.type = 'file'; inp.multiple = true; inp.setAttribute('webkitdirectory', '');
+        inp.onchange = function(){
+          var d = Array.prototype.filter.call(inp.files || [], function(f){ return /\.pdf$/i.test(f.name); });
+          var ilk = inp.files && inp.files[0];
+          ok({ ad: ilk && ilk.webkitRelativePath ? ilk.webkitRelativePath.split('/')[0] : 'seçilen klasör', dosyalar: d });
+        };
+        inp.click();
+      });
+    }
+
+    var ONBELLEK = 'saha_pdf_hane_v1';
+    function belgeleriTara(sonuc){
+      var onb = {};
+      try { onb = JSON.parse(localStorage.getItem(ONBELLEK) || '{}'); } catch(e){}
+      var dosyalar = sonuc.dosyalar, okunacak = [];
+      dosyalar.forEach(function(f){
+        var a = f.name + '|' + f.size + '|' + f.lastModified;
+        f._anahtar = a;
+        if(!(a in onb)) okunacak.push(f);
+      });
+      belgeDurum.klasor = sonuc.ad; belgeDurum.toplamPdf = dosyalar.length;
+      var i = 0;
+      function sonraki(){
+        if(i >= okunacak.length) return Promise.resolve();
+        var f = okunacak[i++];
+        belgeDurum.tarama = 'PDF okunuyor ' + i + ' / ' + okunacak.length;
+        if(i % 5 === 1) belgePanelCiz();
+        return pdfHaneNo(f).then(function(h){ onb[f._anahtar] = h; return sonraki(); });
+      }
+      return sonraki().then(function(){
+        /* önbelleği klasörde artık olmayan dosyalardan temizle */
+        var temiz = {};
+        dosyalar.forEach(function(f){ temiz[f._anahtar] = onb[f._anahtar] || ''; });
+        try { localStorage.setItem(ONBELLEK, JSON.stringify(temiz)); } catch(e){}
+        belgeDosya = {};
+        dosyalar.forEach(function(f){
+          var h = temiz[f._anahtar];
+          if(!h) return;
+          if(!belgeDosya[h] || f.lastModified > belgeDosya[h].lastModified) belgeDosya[h] = f;
+        });
+        tumKayitlar().forEach(function(k){
+          var h = haneTemiz(k.haneNo);
+          k.pdf = h && belgeDosya[h] ? 'p_' + h : '';
+        });
+        belgeTarandi = true;
+        belgeDurum.zaman = new Date(); belgeDurum.tarama = '';
+        V.noktalar.forEach(function(n){
+          var m = isaretler[n.id]; if(!m) return;
+          m.setTooltipContent(etiketHtml(n));
+          m.setPopupContent(baloncuk(n));
+        });
+        filtreUygula();
+        if(el('panelListe').classList.contains('acik')) listeCiz();
+        belgePanelCiz();
+        var say = belgeSayilari();
+        bildir(say.belgeli + ' / ' + say.hane + ' hanenin belgesi bulundu');
+      });
+    }
+    function belgeleriKontrol(yeniKlasor){
+      return klasordenDosyalar(yeniKlasor).then(belgeleriTara).catch(function(e){
+        belgeDurum.tarama = '';
+        if(e && e.name === 'AbortError') return;
+        bildir('Klasör okunamadı: ' + (e && e.message ? e.message : e));
+        belgePanelCiz();
+      });
+    }
+    /* Açılışta: klasör daha önce seçildiyse ve izin hâlâ geçerliyse sessizce tara */
+    function belgeOtomatik(){
+      if(!window.showDirectoryPicker || !db) return;
+      dbAl('meta', 'belgeKlasoru').then(function(h){
+        if(!h) return;
+        belgeDurum.klasor = h.name;
+        return h.queryPermission({ mode:'read' }).then(function(iz){
+          if(iz === 'granted') return belgeleriKontrol(false);
+          bildir('Belgeleri görmek için Belgeler sekmesinden kontrol edin');
+        });
+      }).catch(function(){});
+    }
+
+    function telefonPaketi(){
+      var say = function(secim){
+        var hane = 0, adres = 0;
+        V.noktalar.forEach(function(n){
+          var k = n.kayitlar.filter(function(x){ return secim === 'tumu' || (secim === 'var' ? !!x.pdf : !x.pdf); }).length;
+          if(k){ hane += k; adres++; }
+        });
+        return { hane:hane, adres:adres };
+      };
+      var ss = { tumu:say('tumu'), var:say('var'), yok:say('yok') };
+      var not = function(x){ return x.hane + ' hane · ' + x.adres + ' adres'; };
+      var secenekler = [{ deger:'tumu', ad:'Tümü', not:not(ss.tumu) }];
+      if(belgeTarandi){
+        secenekler.push({ deger:'var', ad:'Belgeli', not:not(ss.var), pasif:!ss.var.hane });
+        secenekler.push({ deger:'yok', ad:'Belgesiz', not:not(ss.yok), pasif:!ss.yok.hane });
+      }
+      var baslik = belgeTarandi ? 'Hangi haneler aktarılsın?' : 'Belgeler kontrol edilmedi; paket belgesiz hazırlanır';
+      secimIste(baslik, secenekler).then(function(secim){
+        if(!secim) return;
+        var uyar = function(k){ return secim === 'tumu' || (secim === 'var' ? !!k.pdf : !k.pdf); };
+        var ek = secim === 'var' ? ' (belgeli)' : secim === 'yok' ? ' (belgesiz)' : '';
+        var noktalar = V.noktalar.map(function(n){
+          var kl = n.kayitlar.filter(uyar);
+          if(!kl.length) return null;
+          return { id:n.id, lat:n.lat, lng:n.lng, mahalle:n.mahalle, cadde:n.cadde, kapi:n.kapi,
+                   pinAd:n.pinAd, fa:n.fa || '', snf:n.snf,
+                   kayitlar: kl.map(function(k){
+                     return { id:k.id, ad:k.ad || '', kimlik:k.kimlik || '', daire:k.daire || '',
+                              tel:k.tel || '', telUlus:k.telUlus || '', telNs:k.telNs || '',
+                              haneNo:k.haneNo || '', kisi:k.kisi || '', yardim:k.yardim || '', tarih:k.tarih || '',
+                              adres:[n.mahalle, etiketMetni(n)].filter(Boolean).join(', '), pdf:k.pdf || '' };
+                   }) };
+        }).filter(Boolean);
+        var kimlikler = [];
+        noktalar.forEach(function(n){ n.kayitlar.forEach(function(k){ kimlikler.push(k.id); }); });
+        var veri = { tur:'saha-harita-paket', surum:1, olusturma:new Date().toISOString(),
+                     baslik:(V.baslik || 'Saha') + ek, kaynak:'Saha haritası', mahalleRenk:V.mahalleRenk || {},
+                     noktalar:noktalar, konumsuz:[], depoAnahtar:'saha_' + karma(kimlikler.sort().join(',')) };
+        var gerekli = [];
+        noktalar.forEach(function(n){ n.kayitlar.forEach(function(k){
+          var h = haneTemiz(k.haneNo);
+          if(k.pdf && belgeDosya[h] && gerekli.indexOf(h) === -1) gerekli.push(h);
+        }); });
+        bildir('Paket hazırlanıyor…');
+        var parcalar = [JSON.stringify(veri).slice(0, -1) + ',"pdfler":{'];
+        var i = 0;
+        function sonraki(){
+          if(i >= gerekli.length) return Promise.resolve();
+          var h = gerekli[i++], f = belgeDosya[h];
+          return dosyaBase64(f).then(function(b64){
+            parcalar.push((i > 1 ? ',' : '') + JSON.stringify('p_' + h) + ':' + JSON.stringify({ ad:f.name, sayfa:0, veri:b64 }));
+            return sonraki();
+          });
+        }
+        sonraki().then(function(){
+          parcalar.push('}}');
+          var blob = new Blob(parcalar, { type:'application/json' });
+          indirBlob(blob, dosyaAdiTemiz('saha-paketi-' + veri.baslik) + '.json');
+          bildir('Telefon paketi hazır: ' + noktalar.length + ' adres, ' + gerekli.length + ' belge, ' +
+                 (blob.size / 1048576).toFixed(1) + ' MB');
+        }).catch(function(e){ bildir('Paket hazırlanamadı: ' + (e && e.message ? e.message : e)); });
+      });
+    }
+
     /* ---- kurulum ---- */
     function kur(){
       el('baslik').textContent = V.baslik || 'Saha Haritası';
@@ -1126,8 +1464,13 @@
       secimYukle();
       harita = L.map('harita', { preferCanvas:true, zoomControl:false, tap:false, rotate:true,
                                   rotateControl:false, touchRotate:true, bearing:0 }).setView([41.0066, 28.7832], 13);
+      /* Dosyadan açılınca OSM kare vermiyor (Referer yok): varsayılan Carto (OSM verisi) */
       var kz = 0;
-      try { var z = parseInt(localStorage.getItem('saha_zemin_v2'), 10); if(!isNaN(z) && z >= 0 && z < ZEMINLER.length) kz = z; } catch(e){}
+      if(DOSYADAN) ZEMINLER.forEach(function(z, i){ if(z.sunucu === 'carto') kz = i; });
+      try {
+        var z = parseInt(localStorage.getItem(DOSYADAN ? 'saha_zemin_dosya' : 'saha_zemin_v2'), 10);
+        if(!isNaN(z) && z >= 0 && z < ZEMINLER.length && !(DOSYADAN && ZEMINLER[z].dosyadaYok)) kz = z;
+      } catch(e){}
       zeminSec(kz, true);
 
       kumeVar = (typeof L.markerClusterGroup === 'function') && V.noktalar.length > 150;
@@ -1138,7 +1481,7 @@
       V.noktalar.forEach(function(n){
         var m = L.circleMarker([n.lat, n.lng], stilVer(n));
         m.bindPopup(function(){ return baloncuk(n); }, { maxWidth: 300, minWidth: 292, autoPanPaddingTopLeft: [12, 12], autoPanPaddingBottomRight: [60, 16] });
-        m.bindTooltip(kacis(etiketMetni(n)), { permanent:true, direction:'right', offset:[7, 0],
+        m.bindTooltip(etiketHtml(n), { permanent:true, direction:'right', offset:[7, 0],
                                              className:'etiket', interactive:false });
         isaretler[n.id] = m;
         katman.addLayer(m);
@@ -1160,6 +1503,9 @@
       }
       document.querySelectorAll('#belgeSegment button').forEach(function(d){
         d.onclick = function(){
+          if(GOMULU && !belgeTarandi && d.getAttribute('data-belge') !== 'tumu'){
+            bildir('Önce Belgeler sekmesinden belgeleri kontrol edin'); return;
+          }
           belgeFiltre = d.getAttribute('data-belge');
           try { localStorage.setItem('saha_belge_filtre', belgeFiltre); } catch(e){}
           belgeSegmentCiz(); filtreIsaretiGuncelle(); filtreUygula();
@@ -1178,7 +1524,14 @@
       el('dgHarita').onclick = kapatPanel;
       el('dgListe').onclick = function(){ if(panelAc('panelListe', 'dgListe')){ listeCiz(); secimBarGuncelle(); } };
       el('dgIst').onclick = function(){ if(panelAc('panelIst', 'dgIst')) istatistikCiz(); };
-      el('dgPaket').onclick = function(){ if(panelAc('panelPaket', 'dgPaket')) paketCiz(); };
+      if(GOMULU){
+        el('dgPaket').innerHTML = ik('belge') + '<span>Belgeler</span>';
+        el('panelPaket').querySelector('.pb span').textContent = 'Belgeler';
+        el('dgPaket').onclick = function(){ if(panelAc('panelPaket', 'dgPaket')) belgePanelCiz(); };
+        belgeOtomatik();
+      }else{
+        el('dgPaket').onclick = function(){ if(panelAc('panelPaket', 'dgPaket')) paketCiz(); };
+      }
       el('dgMahalle').onclick = function(){ panelAc('panelMahalle', 'dgMahalle'); };
       el('dgKatman').onclick = function(){ if(panelAc('panelKatman', null)) zeminListeCiz(); };
       el('secKml').onclick = kmlVer;
@@ -1234,6 +1587,14 @@
      ------------------------------------------------------------------ */
   if('serviceWorker' in navigator && location.protocol === 'https:'){
     navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
+  if(GOMULU){
+    var V0 = GOMULU;
+    V0.konumsuz = V0.konumsuz || [];
+    /* belge durumu her açılışta klasörden yeniden okunur */
+    V0.noktalar.forEach(function(n){ n.kayitlar.forEach(function(k){ k.pdf = ''; }); });
+    dbAc().then(function(d){ db = d; }).catch(function(){}).then(function(){ sahaBaslat(V0); });
+    return;
   }
   dbAc().then(function(d){
     db = d;
